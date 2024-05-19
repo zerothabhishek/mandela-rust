@@ -10,6 +10,7 @@ pub struct ChannelConfig {
 }
 
 lazy_static!{
+  // TODO: rename as CHANNEL_CONFIGS_STORE
   static ref CHANNEL_STORE: Mutex<Vec<ChannelConfig>> = Mutex::new(vec![]);
 }
 

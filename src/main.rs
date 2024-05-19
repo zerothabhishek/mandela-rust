@@ -1,10 +1,8 @@
 #![allow(dead_code)]
 
 use serde::{Deserialize, Serialize};
-// use std::collections::HashMap;
 use std::vec;
 use tokio::net::TcpListener;
-// use tokio::sync::Mutex;
 
 mod channel;
 mod channel_configs;
@@ -76,20 +74,6 @@ async fn main() {
     let files = vec!["./channel_configs/collab.json".to_string()];
     // let channel_configs = channel_configs::read_channel_configs(files);
     channel_configs::init_channel_configs(files).await;
-
-    // let subs_fake = Arc::new(Mutex::new(SubscriptionsHash::new()));
-    // let pool = new_redis_pool().await;
-
-    // let ch_cfg_fake = channel_configs::ChannelConfig {
-    //     label: "test".to_string(),
-    // };
-    // let channel_configs_fake = vec![ch_cfg_fake];
-
-    // let mg = MandelaGlobal {
-    //     channel_configs: channel_configs_fake,
-    //     pool,
-    //     subs: subs_fake,
-    // };
 
     // Start the Redis pub-sub listener in a separate task
     tokio::spawn(redis_pubsub());

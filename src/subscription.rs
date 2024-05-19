@@ -1,5 +1,4 @@
 use crate::channel::build_channel;
-// use crate::channel_configs::find_channel_config;
 use crate::connection;
 use crate::{ChannelName, MandelaChannel, MandelaMsg};
 use core::fmt::Error;
@@ -58,7 +57,7 @@ pub async fn build_sub(
 ) -> Subscription {
     Subscription {
         channel: mchannel,
-        writer: writer,
+        writer,
         ip: addr,
     }
 }

@@ -5,10 +5,6 @@ use crate::{
 };
 use lazy_static::lazy_static;
 use r2d2_redis::{r2d2, redis::Commands, RedisConnectionManager};
-use tokio::sync::Mutex;
-// use serde::{Deserialize, Serialize};
-// use tokio_tungstenite::tungstenite::Message;
-
 pub type RedisPool = r2d2::Pool<RedisConnectionManager>;
 
 const REDIS_PUBSUB_CHANNEL: &str = "_mandela-pubsub";
@@ -22,7 +18,8 @@ fn redis_pool() -> RedisPool {
 }
 
 lazy_static! {
-    static ref REDIS_POOL: Mutex<RedisPool> = Mutex::new(redis_pool());
+    // No need of Mutex here as RedisConnectionManager does the job
+    static ref REDIS_POOL: RedisPool = redis_pool();
 }
 
 pub async fn init_redis() {
@@ -32,28 +29,28 @@ pub async fn init_redis() {
 
 // TODO: msg should be of type MandelaMsgInternal
 pub async fn publish_to_redis(msg: String) {
-    let rpool = REDIS_POOL.lock().await;
-    let rconn_r = rpool.get();
+    println!("Publishing to Redis... {}", msg.clone());
+
+    let rconn_r = REDIS_POOL.get();
+
+    println!("Got Redis connection");
     let mut rconn = match rconn_r {
         Ok(c) => c,
         Err(e) => {
+            println!("Error getting Redis connection: {}", e);
             eprintln!("Error getting Redis connection: {}", e);
             return;
         }
     };
 
+    println!("Publishing message: {}", msg.clone());
     let _x: () = rconn.publish(REDIS_PUBSUB_CHANNEL, msg.clone()).unwrap();
     println!("Published message: {} to {}", msg, REDIS_PUBSUB_CHANNEL);
 }
 
 pub async fn redis_pubsub() {
     //
-    // let rclient = redis::Client::open("redis://127.0.0.1/").unwrap();
-    // let mut con = rclient.get_connection().unwrap();
-    // let pool = mandela_g.pool.clone();
-
-    let pool = REDIS_POOL.lock().await;
-    let con_r = pool.get();
+    let con_r = REDIS_POOL.get();
     let mut con = match con_r {
         Ok(c) => c,
         Err(e) => {
@@ -73,13 +70,6 @@ pub async fn redis_pubsub() {
         // TODO: don't inform ctrl messages
         // TODO: do this in a separate thread 
         inform(payload).await;
-
-        // Doesn't work correctly with tokio::spawn
-        // actual_broadcast(Message::Text(payload), clients.clone()).await;
-        // tokio::spawn(actual_broadcast(
-        //     Message::Text(payload),
-        //     clients.clone(),
-        // ));
     }
 }
 
@@ -99,7 +89,6 @@ async fn inform(msg: String) {
         }
     };
 
-    // let channel_op = find_channel(mandela_msg.m.ch, mandela_msg.m.id, mandela_g.channel_configs.clone()).await;
     let channel_op = build_channel(mandela_msg).clone();
     let channel = match channel_op {
         Some(ch) => ch,
@@ -111,26 +100,3 @@ async fn inform(msg: String) {
 
     inform_subs_on_channel(msg.clone(), channel).await;
 }
-
-// async fn inform_subs_on_channel(msg: String, channel: MandelaChannel) {
-//     // let subs_h = subs.lock().await;
-//     // let subs_for_channel_op = subs_h.get(&channel.ch);
-//     // let subs_for_channel = match subs_for_channel_op {
-//     //     Some(s) => s,
-//     //     None => {
-//     //         println!("No subscriptions found for channel: {}", channel.ch);
-//     //         return;
-//     //     }
-//     // };
-//     let subs_for_channel = find_subs_for_channel(channel)
-//     for sub in subs_for_channel {
-//         let _ = sub.send_text(msg.clone()).await;
-//         // TODO: handle error
-//     }
-// }
-
-// pub async fn new_redis_pool() -> RedisPool {
-//     let manager = RedisConnectionManager::new(REDIS_URL).unwrap();
-//     let pool = r2d2::Pool::builder().build(manager).unwrap();
-//     pool
-// }

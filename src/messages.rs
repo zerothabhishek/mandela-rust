@@ -1,29 +1,29 @@
-use crate::{
-    channel_configs::{self, ChannelConfig},
-    MandelaChannel,
-};
+// use crate::{
+//     channel_configs::{self, ChannelConfig},
+//     MandelaChannel,
+// };
 
 // TODO: remove 
-pub async fn find_channel_x(
-    ch: String,
-    id: String,
-    _channel_configs: Vec<ChannelConfig>,
-) -> Option<MandelaChannel> {
-    //
+// pub async fn find_channel_x(
+//     ch: String,
+//     id: String,
+//     _channel_configs: Vec<ChannelConfig>,
+// ) -> Option<MandelaChannel> {
+//     //
 
-    let channel_configs = read_channel_configs_x();
+//     let channel_configs = read_channel_configs_x();
 
-    let exists = channel_configs.iter().any(|ch_cfg| ch_cfg.label == ch);
-    if !exists {
-        return None;
-    }
-    Some(MandelaChannel { ch, id })
-}
+//     let exists = channel_configs.iter().any(|ch_cfg| ch_cfg.label == ch);
+//     if !exists {
+//         return None;
+//     }
+//     Some(MandelaChannel { ch, id })
+// }
 
-fn read_channel_configs_x() -> Vec<ChannelConfig> {
-    let files = vec!["./channel_configs/collab.json".to_string()];
-    return channel_configs::read_channel_configs(files);
-}
+// fn read_channel_configs_x() -> Vec<ChannelConfig> {
+//     let files = vec!["./channel_configs/collab.json".to_string()];
+//     return channel_configs::read_channel_configs(files);
+// }
 
 // lazy_static! {
 //     static ref CHANNEL_CONFIGS_CACHE: Mutex<Option<Vec<ChannelConfig>>> = Mutex::new(None);
