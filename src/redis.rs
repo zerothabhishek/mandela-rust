@@ -5,14 +5,16 @@ use crate::{
 };
 use lazy_static::lazy_static;
 use r2d2_redis::{r2d2, redis::Commands, RedisConnectionManager};
+use std::env;
+
 pub type RedisPool = r2d2::Pool<RedisConnectionManager>;
 
 const REDIS_PUBSUB_CHANNEL: &str = "_mandela-pubsub";
-const REDIS_URL: &str = "redis://127.0.0.1"; // TODO: get from ENV
 
 fn redis_pool() -> RedisPool {
-    // TODO: error handling
-    let manager = RedisConnectionManager::new(REDIS_URL).unwrap();
+    let redis_url = env::var("REDIS_URL").expect("REDIS_URL not found in ENV");
+
+    let manager = RedisConnectionManager::new(redis_url).unwrap();
     let pool = r2d2::Pool::builder().build(manager).unwrap();
     return pool;
 }
@@ -29,11 +31,8 @@ pub async fn init_redis() {
 
 // TODO: msg should be of type MandelaMsgInternal
 pub async fn publish_to_redis(msg: String) {
-    println!("Publishing to Redis... {}", msg.clone());
 
     let rconn_r = REDIS_POOL.get();
-
-    println!("Got Redis connection");
     let mut rconn = match rconn_r {
         Ok(c) => c,
         Err(e) => {
@@ -43,9 +42,8 @@ pub async fn publish_to_redis(msg: String) {
         }
     };
 
-    println!("Publishing message: {}", msg.clone());
+    println!("Redis: Publishing message: {}", msg.clone());
     let _x: () = rconn.publish(REDIS_PUBSUB_CHANNEL, msg.clone()).unwrap();
-    println!("Published message: {} to {}", msg, REDIS_PUBSUB_CHANNEL);
 }
 
 pub async fn redis_pubsub() {

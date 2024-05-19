@@ -3,6 +3,7 @@
 use serde::{Deserialize, Serialize};
 use std::vec;
 use tokio::net::TcpListener;
+use std::env;
 
 mod channel;
 mod channel_configs;
@@ -56,32 +57,37 @@ struct MandelaGlobal {
     subs: SubscriptionsHashArc,
 }
 
-const IP_AND_PORT: &str = "127.0.0.1:9001";
-
 #[tokio::main]
 async fn main() {
+
+    // Load environment variables
+    dotenvy::dotenv().expect("Failed to load ENV");
+
+
+    // Initialize Redis
     // Checks and panics if needed
     init_redis().await;
-
-    // ws_broadcast().await.unwrap();
-    let server = TcpListener::bind(IP_AND_PORT).await.unwrap();
-    println!("Listening on ws://${}", IP_AND_PORT);
-
-    // TODO: remove
-    // let _clients: ClientHash = Arc::new(Mutex::new(HashMap::new()));
-
-    // TODO: Get the file list as config or input to main
-    let files = vec!["./channel_configs/collab.json".to_string()];
-    // let channel_configs = channel_configs::read_channel_configs(files);
-    channel_configs::init_channel_configs(files).await;
-
     // Start the Redis pub-sub listener in a separate task
     tokio::spawn(redis_pubsub());
+
+
+    // Initialize Channel Configs
+    // TODO: Get the file list as config or input to main
+    let files = vec!["./channel_configs/collab.json".to_string()];
+    channel_configs::init_channel_configs(files).await;
+
+
+    // Start the TCP listener
+    let server_ip = env::var("SERVER_IP").expect("SERVER_IP not found in ENV");
+    let server_port = env::var("SERVER_PORT").expect("SERVER_PORT not found in ENV");
+    let ip_and_port = format!("{}:{}", server_ip, server_port);
+    let server = TcpListener::bind(ip_and_port.clone()).await.unwrap();
+    println!("Listening on ws://{}", ip_and_port);
+
 
     while let Ok((stream, _)) = server.accept().await {
         // Spawn a task to handle the connection
         tokio::spawn(handle_conn(stream));
     }
-
     // Ok(())
 }
