@@ -5,26 +5,30 @@ use crate::{
 };
 use lazy_static::lazy_static;
 use r2d2_redis::{r2d2, redis::Commands, RedisConnectionManager};
-use std::env;
+// use std::env;
 
 pub type RedisPool = r2d2::Pool<RedisConnectionManager>;
 
 const REDIS_PUBSUB_CHANNEL: &str = "_mandela-pubsub";
+const REDIS_URL_DEFAULT : &str = "redis://127.0.0.1:6379";
 
 fn redis_pool() -> RedisPool {
-    let redis_url = env::var("REDIS_URL").expect("REDIS_URL not found in ENV");
+    // let redis_url = env::var("REDIS_URL").expect("REDIS_URL not found in ENV");
+    let redis_url = REDIS_URL_DEFAULT;
 
     let manager = RedisConnectionManager::new(redis_url).unwrap();
     let pool = r2d2::Pool::builder().build(manager).unwrap();
     return pool;
 }
 
+
 lazy_static! {
     // No need of Mutex here as RedisConnectionManager does the job
     static ref REDIS_POOL: RedisPool = redis_pool();
 }
 
-pub async fn init_redis() {
+// TODO: set the REDIS_URL instead of using REDIS_URL_DEFAULT
+pub async fn init_redis(_redis_url: String) {
     // publish fails if there are connection problems
     publish_to_redis(String::from("ctrl:Hello")).await;
 }

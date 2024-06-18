@@ -1,7 +1,9 @@
 use crate::channel::build_channel;
 use crate::redis::publish_to_redis;
-use crate::subscription::{add_sub_to_sub_store, build_sub_from_msg, find_sub_for_msg};
-use crate::{MandelaMsg, MandelaMsgType };
+use crate::subscription::{
+    add_sub_to_sub_store, build_sub_from_msg, find_sub_for_msg, remove_subs_for_ip_addr,
+};
+use crate::{MandelaMsg, MandelaMsgType};
 use futures_util::stream::SplitSink;
 use futures_util::StreamExt;
 use r2d2_redis::{r2d2, RedisConnectionManager};
@@ -32,11 +34,7 @@ pub type ClientHash = Arc<Mutex<HashMap<String, SplitSink<WebSocketStream<TcpStr
 //     }
 // }
 
-async fn handle_sub(
-    msg: MandelaMsg,
-    addr: String,
-    write_stream: Arc<Mutex<WsWriter>>,
-) {
+async fn handle_sub(msg: MandelaMsg, addr: String, write_stream: Arc<Mutex<WsWriter>>) {
     // handle sub
     // Add connection to the list of subs, under the channel name
     // Needs the write stream and the ip address
@@ -44,8 +42,7 @@ async fn handle_sub(
     // - Add Subscription to subs
     // - Send back a welcome message
 
-    let sub_op =
-        build_sub_from_msg(msg.clone(), addr.clone(), write_stream).await;
+    let sub_op = build_sub_from_msg(msg.clone(), addr.clone(), write_stream).await;
 
     let sub = match sub_op {
         Some(_sub) => _sub,
@@ -57,7 +54,7 @@ async fn handle_sub(
 
     add_sub_to_sub_store(sub.clone()).await;
     // Send welcome message
-    let _ = sub.send_text(String::from("Welcome")).await;
+    let _ = sub.send_info(String::from("Subscribed")).await;
     println!("Subscribed: {:?}", addr);
 }
 
@@ -80,11 +77,12 @@ async fn handle_unsub(msg: MandelaMsg, addr: String) {
     let _ = sub.send_text(String::from("Goodbye")).await;
 }
 
-// TODO
-async fn handle_disconnect(_addr: String) {
-    // remove the client from the sub list if subscribed
+async fn handle_disconnect(addr: String) {
+    // TODO: remove the client from the sub list if subscribed
     // we cant tell the channel here, but we have the address
     // clients.lock().await.remove(addr.as_str());
+    remove_subs_for_ip_addr(addr.clone()).await;
+    println!("Disconnected: {:?}", addr);
 }
 
 async fn handle_data(msg: MandelaMsg, _addr: String) {
@@ -102,6 +100,18 @@ async fn handle_data(msg: MandelaMsg, _addr: String) {
     let msg_json = serde_json::to_string(&msg.clone()).unwrap();
     println!("Sending msg JSON to Redis: {:?}", msg_json);
     publish_to_redis(msg_json).await;
+}
+
+async fn handle_here_now(_msg: MandelaMsg) {
+    // Let Redis hold a list of connections (addrs)
+    // SUB => add to the redis-connection-list
+    // UNSUB => remove from redis-connection-list
+    // DISCONNECT => remove from redis-connection-list
+
+    // Garbage-removal:
+    // - In a separate task (thread)
+    // - Iterate over connections in SUBS_STORE;
+    // - remove those that are not responding
 }
 
 pub async fn handle_conn(stream: TcpStream) {
@@ -131,7 +141,7 @@ pub async fn handle_conn(stream: TcpStream) {
                     Message::Text(ws_msg_str) => {
                         println!("Received a message: {:?}", ws_msg_str);
                         let json = serde_json::from_str(&ws_msg_str);
-                        
+
                         let msg: MandelaMsg = match json {
                             Ok(msg) => msg,
                             Err(e) => {
@@ -143,8 +153,7 @@ pub async fn handle_conn(stream: TcpStream) {
                         match msg.m.t {
                             MandelaMsgType::Sub => {
                                 println!("Received a SUB message: {:?}", msg);
-                                handle_sub(msg, addr.clone(), write_stream_arc.clone())
-                                    .await;
+                                handle_sub(msg, addr.clone(), write_stream_arc.clone()).await;
                                 continue;
                             }
                             MandelaMsgType::UnSub => {
@@ -162,13 +171,21 @@ pub async fn handle_conn(stream: TcpStream) {
                                 handle_data(msg, addr.clone()).await;
                                 continue;
                             }
+                            MandelaMsgType::Info => {
+                                println!("Received a INFO message: {:?}", msg);
+                                continue;
+                            } // _ => {
+                              //     println!("Received an unknown message: {:?}", msg);
+                              //     continue;
+                              // }
                         }
                     }
                     Message::Close(_) => {
                         // remove the client from the sub list if subscribed
                         // we cant tell the channel here, but we have the address
+                        println!("Received a CLOSE message: {:?}", addr);
                         handle_disconnect(addr.clone()).await;
-                        continue;
+                        break;
                         // clients.lock().await.remove(addr.as_str());
                     }
                     _ => {

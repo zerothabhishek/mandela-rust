@@ -1,6 +1,6 @@
 use crate::channel::build_channel;
 use crate::connection;
-use crate::{ChannelName, MandelaChannel, MandelaMsg};
+use crate::{ChannelName, MandelaChannel, MandelaMsg, MandelaMsgMeta, MandelaMsgType};
 use core::fmt::Error;
 use futures_util::SinkExt;
 use lazy_static::lazy_static;
@@ -37,6 +37,18 @@ impl Subscription {
             }
         }
         Result::Ok(())
+    }
+
+    pub async fn send_info(&self, info: String) -> Result<(), Error> {
+        let info_data = MandelaMsg {
+            m: MandelaMsgMeta {
+                ch: self.channel.ch.clone(),
+                t: MandelaMsgType::Info,
+            },
+            d: Some(info.clone()),
+        };
+        let info_json = serde_json::to_string(&info_data).unwrap();
+        self.send_text(info_json).await
     }
 }
 
@@ -128,8 +140,29 @@ pub async fn find_sub_for_msg(msg: MandelaMsg, addr: String) -> Option<Subscript
     find_sub(mchannel, addr).await
 }
 
-pub async fn unsub(sub: Subscription, sub_store: SubscriptionsHashArc) {
-    let mut subs_safe = sub_store.lock().await;
+pub async fn find_subs_for_ip_addr(addr: String) -> Vec<Subscription> {
+    let sub_store = SUBS_STORE.lock().await;
+    let mut subs = vec![];
+    for (_ch, subs_arr) in sub_store.iter() {
+        let subs_for_ip = subs_arr
+            .iter()
+            .filter(|s| s.ip == addr)
+            .cloned()
+            .collect::<Vec<Subscription>>();
+        subs.extend(subs_for_ip);
+    }
+    return subs;
+}
+
+pub async fn remove_subs_for_ip_addr(addr: String) {
+    let subs = find_subs_for_ip_addr(addr).await; 
+    for sub in subs {
+        unsub(sub).await;
+    }
+}
+
+pub async fn unsub(sub: Subscription) {
+    let mut subs_safe = SUBS_STORE.lock().await;
     let subs_arr = subs_safe.get(&sub.channel.ch);
     if subs_arr.is_none() {
         return;

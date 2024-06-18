@@ -1,3 +1,7 @@
 {
-  "label": "Collab"
+  "label": "Collab",
+  "recur": {
+    "function": "foo",
+    "every": 10
+  }
 }
