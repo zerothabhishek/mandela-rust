@@ -1,0 +1,1 @@
+/home/abhi/code/mandela-project/mandela-rust/channel_configs/collab.json
