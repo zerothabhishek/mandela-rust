@@ -3,40 +3,34 @@ use crate::{
     subscription::inform_subs_on_channel,
     MandelaMsg,
 };
-use lazy_static::lazy_static;
 use r2d2_redis::{r2d2, redis::Commands, RedisConnectionManager};
-// use std::env;
+use std::sync::OnceLock;
 
 pub type RedisPool = r2d2::Pool<RedisConnectionManager>;
 
 const REDIS_PUBSUB_CHANNEL: &str = "_mandela-pubsub";
 const REDIS_URL_DEFAULT : &str = "redis://127.0.0.1:6379";
 
-fn redis_pool() -> RedisPool {
-    // let redis_url = env::var("REDIS_URL").expect("REDIS_URL not found in ENV");
-    let redis_url = REDIS_URL_DEFAULT;
 
+static REDIS_POOL_CELL: OnceLock<RedisPool> = OnceLock::new();
+
+fn build_redis_pool(redis_url: String) -> RedisPool {
     let manager = RedisConnectionManager::new(redis_url).unwrap();
     let pool = r2d2::Pool::builder().build(manager).unwrap();
     return pool;
 }
 
-
-lazy_static! {
-    // No need of Mutex here as RedisConnectionManager does the job
-    static ref REDIS_POOL: RedisPool = redis_pool();
-}
-
-// TODO: set the REDIS_URL instead of using REDIS_URL_DEFAULT
-pub async fn init_redis(_redis_url: String) {
+pub async fn init_redis(redis_url: String) {
     // publish fails if there are connection problems
+    let _pool = REDIS_POOL_CELL.get_or_init(|| build_redis_pool(redis_url) );
     publish_to_redis(String::from("ctrl:Hello")).await;
 }
 
 // TODO: msg should be of type MandelaMsgInternal
 pub async fn publish_to_redis(msg: String) {
 
-    let rconn_r = REDIS_POOL.get();
+    let pool = REDIS_POOL_CELL.get().unwrap();
+    let rconn_r = pool.get();
     let mut rconn = match rconn_r {
         Ok(c) => c,
         Err(e) => {
@@ -52,7 +46,8 @@ pub async fn publish_to_redis(msg: String) {
 
 pub async fn redis_pubsub() {
     //
-    let con_r = REDIS_POOL.get();
+    let pool = REDIS_POOL_CELL.get().unwrap();
+    let con_r = pool.get();
     let mut con = match con_r {
         Ok(c) => c,
         Err(e) => {
