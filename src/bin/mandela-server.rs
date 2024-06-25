@@ -1,5 +1,6 @@
 use clap::Parser;
 use std::path::PathBuf;
+use tokio::sync::mpsc;
 
 #[derive(Parser, Debug)]
 #[command(name = "mandela-server", about = "Mandela")]
@@ -24,5 +25,18 @@ async fn main() {
     //
     let superfile = args.channel_configs_superfile.to_str().unwrap().to_string();
     let ch_cfg_jsons = mandela_rs::read_channel_config_superfile(superfile).await;
-    mandela_rs::mandela_start(ch_cfg_jsons, args.redis_url, args.server_ip, args.port).await;
+
+    let (tx, mut rx) = mpsc::channel::<String>(100);
+
+    tokio::spawn(mandela_rs::mandela_start(
+        ch_cfg_jsons,
+        args.redis_url,
+        args.server_ip,
+        args.port,
+        Some(tx),
+    ));
+
+    while let Some(msg) = rx.recv().await {
+        println!("mpsc: recv: msg: {}", msg);
+    }
 }

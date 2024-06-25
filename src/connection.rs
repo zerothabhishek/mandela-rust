@@ -145,7 +145,7 @@ pub async fn handle_conn(stream: TcpStream) {
                         let msg: MandelaMsg = match json {
                             Ok(msg) => msg,
                             Err(e) => {
-                                println!("Message cant be parsed: {}", e);
+                                println!("Message is not a MandelaMsg. Can't read : {}", e);
                                 continue;
                             }
                         };

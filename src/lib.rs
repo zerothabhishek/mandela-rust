@@ -9,6 +9,7 @@ mod connection;
 mod messages;
 mod redis;
 mod subscription;
+pub mod test_utils;
 
 use connection::handle_conn;
 use redis::{init_redis, redis_pubsub};
@@ -60,16 +61,18 @@ struct MandelaGlobal {
     subs: SubscriptionsHashArc,
 }
 
+
 pub async fn mandela_start(
     channel_config_jsons: Vec<String>,
     redis_url: String,
     server_ip: String,
     server_port: String,
+    callback_tx: Option<tokio::sync::mpsc::Sender<String>>
 ) {
     dotenvy::dotenv().expect("Failed to load ENV");
 
     init_redis(redis_url).await;
-    tokio::spawn(redis_pubsub());
+    tokio::spawn(redis_pubsub()); // Problem here: blocks the mpsc communication
 
     // let files = channel_config_files;
     channel_configs::init_channel_configs(channel_config_jsons).await;
@@ -81,8 +84,17 @@ pub async fn mandela_start(
     let server = TcpListener::bind(ip_and_port.clone()).await.unwrap();
     println!("Listening on ws://{}", ip_and_port);
 
-    while let Ok((stream, _)) = server.accept().await {
-        // Spawn a task to handle the connection
+    if callback_tx.is_some() {
+        let tx = callback_tx.unwrap();
+        if let Err(e) = tx.send("Started".to_string()).await {
+            println!("Failed to send message on tx: {}", e);
+        };
+    }
+
+    // TODO: handle KILL signal to shutdown gracefully
+    loop {
+        // tokio::time::sleep(tokio::time::Duration::from_millis(150)).await;
+        let (stream, _) = server.accept().await.unwrap(); // TODO: handle error
         tokio::spawn(handle_conn(stream));
     }
 }

@@ -60,7 +60,10 @@ pub async fn redis_pubsub() {
 
     pubsub.subscribe(REDIS_PUBSUB_CHANNEL).unwrap();
     loop {
-        let msg = pubsub.get_message().unwrap();
+        // to make sure the thread keeps unblocking
+        tokio::time::sleep(tokio::time::Duration::from_millis(150)).await;
+
+        let msg = pubsub.get_message().unwrap();// TODO: find a tokio compatible API. This one blocks
         let payload: String = msg.get_payload().unwrap();
         println!("channel '{}': {}", msg.get_channel_name(), payload);
 
